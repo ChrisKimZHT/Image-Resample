@@ -24,7 +24,7 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
             img = img.resize((limit, int(limit / width * height)))
         elif width <= height and height > limit:
             img = img.resize((int(limit / height * width), limit))
-        img.save(save_path, quality=quality)
+        img.convert("RGB").save(save_path, quality=quality)
         print(f"[ ] 已处理: {img_path}")
 
 
