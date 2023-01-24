@@ -37,7 +37,7 @@ def main() -> None:
         file, ext = os.path.splitext(file_and_ext)
         if ext.lower() in ext_list:
             new_path = path.replace(input_path, output_path)
-            save_path = new_path + "\\" + file + ext
+            save_path = new_path + "\\" + file + ".jpg"
             if not os.path.exists(new_path):
                 os.makedirs(new_path)
             threading.Thread(target=resample_img, args=(img_path, save_path)).start()
