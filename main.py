@@ -100,7 +100,7 @@ def resample_img(sem: threading.Semaphore, pbar: tqdm,
 
 def process(config: Config, img_list: list) -> None:
     sem = threading.Semaphore(config.concurrency)
-    with tqdm(total=len(img_list)) as pbar:
+    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
         for img_path in img_list:
             path, file_and_ext = os.path.split(img_path)
             file, ext = os.path.splitext(file_and_ext)
