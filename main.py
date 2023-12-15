@@ -53,7 +53,7 @@ def get_parament() -> Config:
         choices=["jpg", "webp"],
     ).execute()
     img_quality = inquirer.text(
-        message="压缩质量 (1-100): ",
+        message="压缩质量 (1-100):",
         validate=NumberValidator(message="请输入合法数字"),
         default="90",
         filter=lambda result: int(result),
@@ -121,9 +121,10 @@ def process(config: Config, img_list: list) -> None:
 def main() -> None:
     color_print([("green", "图片重采样工具 v2.0"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_parament()
+    os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "[*] 遍历文件夹中...")])
     img_list = get_filepath(config.input_path, [])
-    color_print([("green", "[*] 开始处理...")])
+    color_print([("green", "[*] 任务开始: "), ("yellow", f"共 {len(img_list)} 个文件")])
     process(config, img_list)
 
 
