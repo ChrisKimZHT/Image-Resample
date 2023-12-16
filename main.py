@@ -1,9 +1,10 @@
 import os
-import threading
-from PIL import Image
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from InquirerPy import inquirer
-from InquirerPy.validator import PathValidator, NumberValidator
 from InquirerPy.utils import color_print
+from InquirerPy.validator import PathValidator, NumberValidator
+from PIL import Image
 from tqdm import tqdm
 
 
@@ -64,12 +65,6 @@ def get_parament() -> Config:
         default="8",
         filter=lambda result: int(result),
     ).execute()
-    confirm = inquirer.confirm(
-        message="确认开始处理吗?",
-        default=True,
-    ).execute()
-    if not confirm:
-        exit()
     config = Config(input_path, output_path, img_size, img_format, img_quality, concurrency)
     return config
 
@@ -84,48 +79,69 @@ def get_filepath(dir_path: str, res_list: list) -> list:
     return res_list
 
 
-def resample_img(sem: threading.Semaphore, pbar: tqdm,
-                 img_path: str, save_path: str, limit: int = 2400, quality: int = 100) -> None:
-    with sem:
-        img = Image.open(img_path)
-        width, height = img.size
-        if width > height and width > limit:
-            img = img.resize((limit, int(limit / width * height)))
-        elif width <= height and height > limit:
-            img = img.resize((int(limit / height * width), limit))
-        img.convert("RGB").save(save_path, quality=quality)
-        pbar.update(1)
-        pbar.set_description(f"Done {os.path.split(img_path)[-1]}".ljust(30)[:30])
+def filter_filepath(file_list: list) -> list:
+    res_list = []
+    for filepath in file_list:
+        path, file_and_ext = os.path.split(filepath)
+        filename, ext = os.path.splitext(file_and_ext)
+        if ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]:
+            res_list.append(filepath)
+    return res_list
+
+
+def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100) -> None:
+    img = Image.open(img_path)
+    width, height = img.size
+    if width > height and width > limit:
+        img = img.resize((limit, int(limit / width * height)))
+    elif width <= height and height > limit:
+        img = img.resize((int(limit / height * width), limit))
+    img.convert("RGB").save(save_path, quality=quality)
+    return os.path.split(save_path)[-1]
 
 
 def process(config: Config, img_list: list) -> None:
-    sem = threading.Semaphore(config.concurrency)
-    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
-        for img_path in img_list:
-            path, file_and_ext = os.path.split(img_path)
-            file, ext = os.path.splitext(file_and_ext)
-            if ext.lower() not in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]:
+    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
+        color_print([("green", "[*] 生成任务...")])
+        futures = []
+        with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
+            for img_path in img_list:
+                path, file_and_ext = os.path.split(img_path)
+                file, ext = os.path.splitext(file_and_ext)
+                new_path = path.replace(config.input_path, config.output_path)
+                save_path = os.path.join(new_path, f"{file}.{config.img_format}")
+                if not os.path.exists(new_path):
+                    os.makedirs(new_path)
+                futures.append(executor.submit(resample_img, img_path, save_path, config.img_size, config.img_quality))
+                pbar.set_description(f"{file_and_ext}".ljust(24)[:24])
                 pbar.update(1)
-                pbar.set_description(f"Skip {file_and_ext}".ljust(30)[:30])
-                continue
-            new_path = path.replace(config.input_path, config.output_path)
-            save_path = os.path.join(new_path, f"{file}.{config.img_format}")
-            if not os.path.exists(new_path):
-                os.makedirs(new_path)
-            threading.Thread(
-                target=resample_img,
-                args=(sem, pbar, img_path, save_path, config.img_size, config.img_quality)
-            ).start()
+        color_print([("green", "[*] 开始任务...")])
+        with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
+            for future in as_completed(futures):
+                pbar.set_description(f"{future.result()}".ljust(24)[:24])
+                pbar.update(1)
 
 
 def main() -> None:
-    color_print([("green", "图片重采样工具 v2.0"), ("yellow", " @ChrisKimZHT")])
+    color_print([("green", "图片重采样工具 v2.1"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_parament()
-    os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "[*] 遍历文件夹中...")])
     img_list = get_filepath(config.input_path, [])
-    color_print([("green", "[*] 任务开始: "), ("yellow", f"共 {len(img_list)} 个文件")])
+    color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
+    color_print([("green", "[*] 过滤非图片...")])
+    img_list = filter_filepath(img_list)
+    color_print([("green", "[*] 过滤完成: "), ("yellow", f"共 {len(img_list)} 个图片")])
+    confirm = inquirer.confirm(
+        message="确认开始处理吗?",
+        default=True,
+    ).execute()
+    if not confirm:
+        exit()
+    os.system("clear" if os.name == "posix" else "cls")
+    color_print([("green", "图片重采样工具 v2.1"), ("yellow", " @ChrisKimZHT")])
     process(config, img_list)
+    color_print([("green", "[*] 处理完成")])
+    input("按任意键退出...")
 
 
 if __name__ == '__main__':
