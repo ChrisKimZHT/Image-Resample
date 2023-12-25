@@ -34,6 +34,8 @@ def get_parament() -> Config:
         input_path += "/"
     if not output_path.endswith("/"):
         output_path += "/"
+    input_path = os.path.abspath(input_path)
+    output_path = os.path.abspath(output_path)
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
         exit()
