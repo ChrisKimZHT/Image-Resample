@@ -124,7 +124,7 @@ def prepare_tasks(config: Config, img_list: list) -> list:
         for img_path in img_list:
             path, file_and_ext = os.path.split(img_path)
             file, ext = os.path.splitext(file_and_ext)
-            new_path = path.replace(config.input_path, config.output_path)
+            new_path = normalize_path(path).replace(config.input_path, config.output_path)
             save_path = os.path.join(new_path, f"{file}.{config.img_format}")
             if not os.path.exists(new_path):
                 os.makedirs(new_path)
