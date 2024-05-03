@@ -106,16 +106,19 @@ def filter_filepath(file_list: list) -> list:
 
 
 def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100, keep_alpha: bool = False) -> str:
-    img = Image.open(img_path)
-    width, height = img.size
-    channel = len(img.getbands())
-    if width > height and width > limit:
-        img = img.resize((limit, int(limit / width * height)))
-    elif width <= height and height > limit:
-        img = img.resize((int(limit / height * width), limit))
-    img = img.convert("RGBA" if (keep_alpha and channel == 4) else "RGB")
-    img.save(save_path, **({"quality": quality} if quality != -1 else {}))
-    return os.path.split(save_path)[-1]
+    try:
+        img = Image.open(img_path)
+        width, height = img.size
+        channel = len(img.getbands())
+        if width > height and width > limit:
+            img = img.resize((limit, int(limit / width * height)))
+        elif width <= height and height > limit:
+            img = img.resize((int(limit / height * width), limit))
+        img = img.convert("RGBA" if (keep_alpha and channel == 4) else "RGB")
+        img.save(save_path, **({"quality": quality} if quality != -1 else {}))
+        return os.path.split(save_path)[-1]
+    except Exception as e:
+        return f"[ERR] {e}"
 
 
 def prepare_tasks(config: Config, img_list: list) -> list:
@@ -134,13 +137,18 @@ def prepare_tasks(config: Config, img_list: list) -> list:
     return tasks
 
 
-def execute_tasks(config: Config, tasks: list) -> None:
+def execute_tasks(config: Config, tasks: list) -> list:
+    err = []
     with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
         futures = [executor.submit(*task) for task in tasks]
         with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
             for future in as_completed(futures):
-                pbar.set_description(f"{future.result()}".ljust(24)[:24])
+                res = future.result()
+                if res.startswith("[ERR] "):
+                    err.append(res[6:])
+                pbar.set_description(f"{res}".ljust(24)[:24])
                 pbar.update(1)
+    return err
 
 
 def main() -> None:
@@ -163,8 +171,10 @@ def main() -> None:
     color_print([("green", "[*] 生成任务...")])
     tasks = prepare_tasks(config, img_list)
     color_print([("green", "[*] 开始任务...")])
-    execute_tasks(config, tasks)
+    err = execute_tasks(config, tasks)
     color_print([("green", "[*] 处理完成")])
+    for i, e in enumerate(err):
+        color_print([("red", f"[x] #{i} {e}")])
     is_continue = inquirer.confirm(
         message="是否继续?",
         default=False,
