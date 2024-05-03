@@ -10,12 +10,13 @@ from tqdm import tqdm
 
 class Config:
     def __init__(self, input_path: str, output_path: str, img_size: int, img_format: str, img_quality: int,
-                 concurrency: int):
+                 keep_alpha: bool, concurrency: int):
         self.input_path = input_path
         self.output_path = output_path
         self.img_size = img_size
         self.img_format = img_format
         self.img_quality = img_quality
+        self.keep_alpha = keep_alpha
         self.concurrency = concurrency
 
 
@@ -68,13 +69,19 @@ def get_parament() -> Config:
             default="90",
             filter=lambda result: int(result),
         ).execute()
+    keep_alpha = False
+    if img_format != "jpg":
+        keep_alpha = inquirer.confirm(
+            message="是否保留透明度?",
+            default=True,
+        ).execute()
     concurrency = inquirer.text(
         message="并行数:",
         validate=NumberValidator(message="请输入合法数字"),
         default="8",
         filter=lambda result: int(result),
     ).execute()
-    config = Config(input_path, output_path, img_size, img_format, img_quality, concurrency)
+    config = Config(input_path, output_path, img_size, img_format, img_quality, keep_alpha, concurrency)
     return config
 
 
@@ -98,17 +105,16 @@ def filter_filepath(file_list: list) -> list:
     return res_list
 
 
-def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100) -> str:
+def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100, keep_alpha: bool = False) -> str:
     img = Image.open(img_path)
     width, height = img.size
+    channel = len(img.getbands())
     if width > height and width > limit:
         img = img.resize((limit, int(limit / width * height)))
     elif width <= height and height > limit:
         img = img.resize((int(limit / height * width), limit))
-    if quality == -1:
-        img.convert("RGBA").save(save_path)
-    else:
-        img.convert("RGB").save(save_path, quality=quality)
+    img = img.convert("RGBA" if (keep_alpha and channel == 4) else "RGB")
+    img.save(save_path, **({"quality": quality} if quality != -1 else {}))
     return os.path.split(save_path)[-1]
 
 
@@ -122,7 +128,7 @@ def prepare_tasks(config: Config, img_list: list) -> list:
             save_path = os.path.join(new_path, f"{file}.{config.img_format}")
             if not os.path.exists(new_path):
                 os.makedirs(new_path)
-            tasks.append((resample_img, img_path, save_path, config.img_size, config.img_quality))
+            tasks.append((resample_img, img_path, save_path, config.img_size, config.img_quality, config.keep_alpha))
             pbar.set_description(f"{file_and_ext}".ljust(24)[:24])
             pbar.update(1)
     return tasks
