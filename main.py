@@ -19,6 +19,15 @@ class Config:
         self.concurrency = concurrency
 
 
+def normalize_path(path: str) -> str:
+    path = os.path.abspath(path)
+    if os.name == "posix":
+        path += "/" if not path.endswith("/") else ""
+    else:
+        path += "\\" if not path.endswith("\\") else ""
+    return path
+
+
 def get_parament() -> Config:
     input_path = inquirer.filepath(
         message="原图文件夹:",
@@ -30,12 +39,8 @@ def get_parament() -> Config:
         only_directories=True,
         validate=PathValidator(is_dir=True, is_file=False, message="请输入合法路径"),
     ).execute()
-    if not input_path.endswith("/"):
-        input_path += "/"
-    if not output_path.endswith("/"):
-        output_path += "/"
-    input_path = os.path.abspath(input_path)
-    output_path = os.path.abspath(output_path)
+    input_path = normalize_path(input_path)
+    output_path = normalize_path(output_path)
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
         exit(1)
