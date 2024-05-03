@@ -91,7 +91,7 @@ def filter_filepath(file_list: list) -> list:
     return res_list
 
 
-def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100) -> None:
+def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100) -> str:
     img = Image.open(img_path)
     width, height = img.size
     if width > height and width > limit:
