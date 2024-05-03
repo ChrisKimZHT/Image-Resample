@@ -38,13 +38,13 @@ def get_parament() -> Config:
     output_path = os.path.abspath(output_path)
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
-        exit()
+        exit(1)
     if not os.path.exists(input_path):
         color_print([("red", "[x] 输入路径不存在")])
-        exit()
+        exit(1)
     if not os.path.exists(output_path):
         color_print([("red", "[x] 安全起见，输出路径必须存在")])
-        exit()
+        exit(1)
     img_size = inquirer.text(
         message="尺寸限制 (限制长边，单位像素):",
         validate=NumberValidator(message="请输入合法数字"),
@@ -102,22 +102,25 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
     return os.path.split(save_path)[-1]
 
 
-def process(config: Config, img_list: list) -> None:
+def prepare_tasks(config: Config, img_list: list) -> list:
+    tasks = []
+    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
+        for img_path in img_list:
+            path, file_and_ext = os.path.split(img_path)
+            file, ext = os.path.splitext(file_and_ext)
+            new_path = path.replace(config.input_path, config.output_path)
+            save_path = os.path.join(new_path, f"{file}.{config.img_format}")
+            if not os.path.exists(new_path):
+                os.makedirs(new_path)
+            tasks.append((resample_img, img_path, save_path, config.img_size, config.img_quality))
+            pbar.set_description(f"{file_and_ext}".ljust(24)[:24])
+            pbar.update(1)
+    return tasks
+
+
+def execute_tasks(config: Config, tasks: list) -> None:
     with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
-        color_print([("green", "[*] 生成任务...")])
-        futures = []
-        with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
-            for img_path in img_list:
-                path, file_and_ext = os.path.split(img_path)
-                file, ext = os.path.splitext(file_and_ext)
-                new_path = path.replace(config.input_path, config.output_path)
-                save_path = os.path.join(new_path, f"{file}.{config.img_format}")
-                if not os.path.exists(new_path):
-                    os.makedirs(new_path)
-                futures.append(executor.submit(resample_img, img_path, save_path, config.img_size, config.img_quality))
-                pbar.set_description(f"{file_and_ext}".ljust(24)[:24])
-                pbar.update(1)
-        color_print([("green", "[*] 开始任务...")])
+        futures = [executor.submit(*task) for task in tasks]
         with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
             for future in as_completed(futures):
                 pbar.set_description(f"{future.result()}".ljust(24)[:24])
@@ -141,10 +144,19 @@ def main() -> None:
         exit()
     os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "图片重采样工具 v2.1"), ("yellow", " @ChrisKimZHT")])
-    process(config, img_list)
+    color_print([("green", "[*] 生成任务...")])
+    tasks = prepare_tasks(config, img_list)
+    color_print([("green", "[*] 开始任务...")])
+    execute_tasks(config, tasks)
     color_print([("green", "[*] 处理完成")])
-    input("按任意键退出...")
+    is_continue = inquirer.confirm(
+        message="是否继续?",
+        default=False,
+    ).execute()
+    if not is_continue:
+        exit(0)
 
 
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
