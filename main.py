@@ -152,7 +152,7 @@ def execute_tasks(config: Config, tasks: list) -> list:
 
 
 def main() -> None:
-    color_print([("green", "图片重采样工具 v2.1"), ("yellow", " @ChrisKimZHT")])
+    color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_parament()
     color_print([("green", "[*] 遍历文件夹中...")])
     img_list = get_filepath(config.input_path, [])
@@ -167,7 +167,7 @@ def main() -> None:
     if not confirm:
         exit()
     os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v2.1"), ("yellow", " @ChrisKimZHT")])
+    color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
     color_print([("green", "[*] 生成任务...")])
     tasks = prepare_tasks(config, img_list)
     color_print([("green", "[*] 开始任务...")])
