@@ -58,14 +58,16 @@ def get_parament() -> Config:
     ).execute()
     img_format = inquirer.select(
         message="压缩格式:",
-        choices=["jpg", "webp"],
+        choices=["jpg", "webp", "png"],
     ).execute()
-    img_quality = inquirer.text(
-        message="压缩质量 (1-100):",
-        validate=NumberValidator(message="请输入合法数字"),
-        default="90",
-        filter=lambda result: int(result),
-    ).execute()
+    img_quality = -1  # quality = -1 特指 png 格式
+    if img_format != "png":
+        img_quality = inquirer.text(
+            message="压缩质量 (1-100):",
+            validate=NumberValidator(message="请输入合法数字"),
+            default="90",
+            filter=lambda result: int(result),
+        ).execute()
     concurrency = inquirer.text(
         message="并行数:",
         validate=NumberValidator(message="请输入合法数字"),
@@ -103,7 +105,10 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
         img = img.resize((limit, int(limit / width * height)))
     elif width <= height and height > limit:
         img = img.resize((int(limit / height * width), limit))
-    img.convert("RGB").save(save_path, quality=quality)
+    if quality == -1:
+        img.convert("RGBA").save(save_path)
+    else:
+        img.convert("RGB").save(save_path, quality=quality)
     return os.path.split(save_path)[-1]
 
 
