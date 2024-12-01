@@ -10,7 +10,7 @@ from classes import Config, PathValidatorWithoutQuote
 from utils import normalize_path, recursive_list_file, filter_images, resample_img, load_preset
 
 
-def get_parament() -> Config:
+def get_input_output() -> tuple:
     input_path = inquirer.filepath(
         message="原图文件夹:",
         only_directories=True,
@@ -27,13 +27,22 @@ def get_parament() -> Config:
 
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
-        exit(1)
+        return None, None
     if not os.path.exists(input_path):
         color_print([("red", "[x] 输入路径不存在")])
-        exit(1)
+        return None, None
     if not os.path.exists(output_path):
         color_print([("red", "[x] 安全起见，输出路径必须存在")])
-        exit(1)
+        return None, None
+
+    return input_path, output_path
+
+
+def get_config() -> Config:
+    while True:
+        input_path, output_path = get_input_output()
+        if input_path is not None:
+            break
 
     preset = load_preset()
     config = Config(input_path=input_path, output_path=output_path)
@@ -116,8 +125,9 @@ def execute_tasks(config: Config, tasks: list) -> list:
 
 
 def main() -> None:
+    os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
-    config: Config = get_parament()
+    config: Config = get_config()
     color_print([("green", "[*] 遍历文件夹中...")])
     img_list = recursive_list_file(config.input_path)
     color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
@@ -129,7 +139,7 @@ def main() -> None:
         default=True,
     ).execute()
     if not confirm:
-        exit()
+        return
     os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
     color_print([("green", "[*] 生成任务...")])
