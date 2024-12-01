@@ -12,6 +12,7 @@ class Config:
     img_quality: int = -1  # quality = -1 特指 png 格式
     keep_alpha: bool = False
     concurrency: int = 8
+    zip: bool = False
 
 
 class PathValidatorWithoutQuote(PathValidator):

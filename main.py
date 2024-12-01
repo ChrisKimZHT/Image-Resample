@@ -7,7 +7,8 @@ from InquirerPy.validator import NumberValidator
 from tqdm import tqdm
 
 from classes import Config, PathValidatorWithoutQuote
-from utils import normalize_path, recursive_list_file, filter_images, resample_img, load_preset
+from utils import normalize_path, recursive_list_file, filter_images, resample_img, load_preset, make_zipfile, \
+    delete_except_zip, list_relpath_file
 
 
 def get_input_output() -> tuple:
@@ -33,6 +34,9 @@ def get_input_output() -> tuple:
         return None, None
     if not os.path.exists(output_path):
         color_print([("red", "[x] 安全起见，输出路径必须存在")])
+        return None, None
+    if os.listdir(output_path):
+        color_print([("red", "[x] 安全起见，输出路径必须为空")])
         return None, None
 
     return input_path, output_path
@@ -91,6 +95,11 @@ def get_config() -> Config:
         filter=lambda result: int(result),
     ).execute() if ("concurrency" not in preset) else preset["concurrency"]
 
+    config.zip = inquirer.confirm(
+        message="是否压缩文件夹?",
+        default=False,
+    ).execute() if ("zip" not in preset) else preset["zip"]
+
     return config
 
 
@@ -124,31 +133,50 @@ def execute_tasks(config: Config, tasks: list) -> list:
     return err
 
 
-def main() -> None:
-    os.system("clear" if os.name == "posix" else "cls")
+def print_header(cls: bool = False):
+    if cls:
+        os.system("clear" if os.name == "posix" else "cls")
     color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
+
+
+def main() -> None:
+    print_header(True)
     config: Config = get_config()
+
     color_print([("green", "[*] 遍历文件夹中...")])
     img_list = recursive_list_file(config.input_path)
     color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
+
     color_print([("green", "[*] 过滤非图片...")])
     img_list = filter_images(img_list)
     color_print([("green", "[*] 过滤完成: "), ("yellow", f"共 {len(img_list)} 个图片")])
+
     confirm = inquirer.confirm(
         message="确认开始处理吗?",
         default=True,
     ).execute()
     if not confirm:
         return
-    os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
+
+    print_header(True)
     color_print([("green", "[*] 生成任务...")])
     tasks = prepare_tasks(config, img_list)
     color_print([("green", "[*] 开始任务...")])
     err = execute_tasks(config, tasks)
     color_print([("green", "[*] 处理完成")])
+
     for i, e in enumerate(err):
         color_print([("red", f"[x] #{i} {e}")])
+
+    if config.zip:
+        color_print([("green", "[*] 压缩中...")])
+        file_rel_list = list_relpath_file(config.output_path)
+        zipfile_path = os.path.join(config.output_path, "output.zip")
+        make_zipfile(zipfile_path, file_rel_list)
+        color_print([("green", "[*] 压缩完成"), ("yellow", f" {zipfile_path}")])
+        color_print([("green", "[*] 清理中...")])
+        delete_except_zip(config.output_path)
+
     is_continue = inquirer.confirm(
         message="是否继续?",
         default=False,

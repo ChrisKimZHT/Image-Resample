@@ -1,7 +1,10 @@
 import json
 import os
+import shutil
+import zipfile
 
 from PIL import Image
+from tqdm import tqdm
 
 
 def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100, keep_alpha: bool = False) -> str:
@@ -87,3 +90,47 @@ def load_preset(preset_path: str = "preset.json") -> dict:
         return {}
     with open(preset_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def list_relpath_file(dir_path: str) -> list:
+    """
+    列出文件夹下所有文件的相对路径
+    :param dir_path: 待列出文件的文件夹路径
+    :return: 文件相对路径列表
+    """
+    res_list = []
+    for foldername, subfolders, filenames in os.walk(dir_path):
+        for filename in filenames:
+            file_path = os.path.join(foldername, filename)
+            res_list.append((file_path, os.path.relpath(file_path, dir_path)))
+    return res_list
+
+
+def make_zipfile(zip_path: str, file_list: list) -> None:
+    """
+    压缩文件列表
+    :param zip_path: 压缩文件路径
+    :param file_list: 文件相对路径列表 [(文件路径, 相对路径), ...]
+    """
+    with zipfile.ZipFile(zip_path, "w") as zipf:
+        with tqdm(total=len(file_list), dynamic_ncols=True) as pbar:
+            for file_path, rel_path in file_list:
+                zipf.write(file_path, rel_path)
+                file_name = os.path.split(file_path)[-1]
+                pbar.update(1)
+                pbar.set_description(f"{file_name}".ljust(24)[:24])
+
+
+def delete_except_zip(folder_path: str) -> None:
+    """
+    删除除zip文件外的所有文件
+    :param folder_path: 文件夹路径
+    """
+    for item in os.listdir(folder_path):
+        item_path = os.path.join(folder_path, item)
+
+        if item != 'output.zip':
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+            else:
+                os.remove(item_path)
