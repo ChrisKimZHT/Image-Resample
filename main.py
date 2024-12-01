@@ -4,29 +4,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from InquirerPy import inquirer
 from InquirerPy.utils import color_print
 from InquirerPy.validator import PathValidator, NumberValidator
-from PIL import Image
 from tqdm import tqdm
 
-
-class Config:
-    def __init__(self, input_path: str, output_path: str, img_size: int, img_format: str, img_quality: int,
-                 keep_alpha: bool, concurrency: int):
-        self.input_path = input_path
-        self.output_path = output_path
-        self.img_size = img_size
-        self.img_format = img_format
-        self.img_quality = img_quality
-        self.keep_alpha = keep_alpha
-        self.concurrency = concurrency
-
-
-def normalize_path(path: str) -> str:
-    path = os.path.abspath(path)
-    if os.name == "posix":
-        path += "/" if not path.endswith("/") else ""
-    else:
-        path += "\\" if not path.endswith("\\") else ""
-    return path
+from Config import Config
+from utils import normalize_path, recursive_list_file, filter_images, resample_img
 
 
 def get_parament() -> Config:
@@ -85,42 +66,6 @@ def get_parament() -> Config:
     return config
 
 
-def get_filepath(dir_path: str, res_list: list) -> list:
-    for file in os.listdir(dir_path):
-        file_path = os.path.join(dir_path, file)
-        if os.path.isdir(file_path):
-            get_filepath(file_path, res_list)
-        else:
-            res_list.append(file_path)
-    return res_list
-
-
-def filter_filepath(file_list: list) -> list:
-    res_list = []
-    for filepath in file_list:
-        path, file_and_ext = os.path.split(filepath)
-        filename, ext = os.path.splitext(file_and_ext)
-        if ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]:
-            res_list.append(filepath)
-    return res_list
-
-
-def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100, keep_alpha: bool = False) -> str:
-    try:
-        img = Image.open(img_path)
-        width, height = img.size
-        channel = len(img.getbands())
-        if width > height and width > limit:
-            img = img.resize((limit, int(limit / width * height)))
-        elif width <= height and height > limit:
-            img = img.resize((int(limit / height * width), limit))
-        img = img.convert("RGBA" if (keep_alpha and channel == 4) else "RGB")
-        img.save(save_path, **({"quality": quality} if quality != -1 else {}))
-        return os.path.split(save_path)[-1]
-    except Exception as e:
-        return f"[ERR] {e}"
-
-
 def prepare_tasks(config: Config, img_list: list) -> list:
     tasks = []
     with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
@@ -155,10 +100,10 @@ def main() -> None:
     color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_parament()
     color_print([("green", "[*] 遍历文件夹中...")])
-    img_list = get_filepath(config.input_path, [])
+    img_list = recursive_list_file(config.input_path)
     color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
     color_print([("green", "[*] 过滤非图片...")])
-    img_list = filter_filepath(img_list)
+    img_list = filter_images(img_list)
     color_print([("green", "[*] 过滤完成: "), ("yellow", f"共 {len(img_list)} 个图片")])
     confirm = inquirer.confirm(
         message="确认开始处理吗?",
