@@ -30,10 +30,11 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
 
 def normalize_path(path: str) -> str:
     """
-    标准化路径为绝对路径并且确保以斜杠结尾
+    去除引号，标准化路径为绝对路径并且确保以斜杠结尾
     :param path: 原始路径
     :return: 标准化后的路径
     """
+    path = path.strip("\"").strip("\'")
     path = os.path.abspath(path)
     if os.name == "posix":
         path += "/" if not path.endswith("/") else ""

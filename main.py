@@ -3,10 +3,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from InquirerPy import inquirer
 from InquirerPy.utils import color_print
-from InquirerPy.validator import PathValidator, NumberValidator
+from InquirerPy.validator import NumberValidator
 from tqdm import tqdm
 
-from Config import Config
+from classes import Config, PathValidatorWithoutQuote
 from utils import normalize_path, recursive_list_file, filter_images, resample_img
 
 
@@ -14,12 +14,12 @@ def get_parament() -> Config:
     input_path = inquirer.filepath(
         message="原图文件夹:",
         only_directories=True,
-        validate=PathValidator(is_dir=True, is_file=False, message="请输入合法路径"),
+        validate=PathValidatorWithoutQuote(is_dir=True, is_file=False, message="请输入合法路径"),
     ).execute()
     output_path = inquirer.filepath(
         message="目标文件夹:",
         only_directories=True,
-        validate=PathValidator(is_dir=True, is_file=False, message="请输入合法路径"),
+        validate=PathValidatorWithoutQuote(is_dir=True, is_file=False, message="请输入合法路径"),
     ).execute()
     input_path = normalize_path(input_path)
     output_path = normalize_path(output_path)
