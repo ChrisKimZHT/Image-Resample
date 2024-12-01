@@ -136,7 +136,7 @@ def execute_tasks(config: Config, tasks: list) -> list:
 def print_header(cls: bool = False):
     if cls:
         os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v2.2"), ("yellow", " @ChrisKimZHT")])
+    color_print([("green", "图片重采样工具 v3.0"), ("yellow", " @ChrisKimZHT")])
 
 
 def main() -> None:
