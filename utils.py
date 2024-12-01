@@ -1,3 +1,4 @@
+import json
 import os
 
 from PIL import Image
@@ -74,3 +75,15 @@ def filter_images(file_list: list) -> list:
         if ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]:
             res_list.append(filepath)
     return res_list
+
+
+def load_preset(preset_path: str = "preset.json") -> dict:
+    """
+    读取预设配置
+    :param preset_path: 配置文件路径
+    :return: 预设配置
+    """
+    if not os.path.exists(preset_path):
+        return {}
+    with open(preset_path, "r", encoding="utf-8") as f:
+        return json.load(f)

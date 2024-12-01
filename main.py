@@ -7,7 +7,7 @@ from InquirerPy.validator import NumberValidator
 from tqdm import tqdm
 
 from classes import Config, PathValidatorWithoutQuote
-from utils import normalize_path, recursive_list_file, filter_images, resample_img
+from utils import normalize_path, recursive_list_file, filter_images, resample_img, load_preset
 
 
 def get_parament() -> Config:
@@ -21,8 +21,10 @@ def get_parament() -> Config:
         only_directories=True,
         validate=PathValidatorWithoutQuote(is_dir=True, is_file=False, message="请输入合法路径"),
     ).execute()
+
     input_path = normalize_path(input_path)
     output_path = normalize_path(output_path)
+
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
         exit(1)
@@ -32,37 +34,54 @@ def get_parament() -> Config:
     if not os.path.exists(output_path):
         color_print([("red", "[x] 安全起见，输出路径必须存在")])
         exit(1)
-    img_size = inquirer.text(
+
+    preset = load_preset()
+    config = Config(input_path=input_path, output_path=output_path)
+
+    if preset != {}:
+        color_print([("green", "[*] 检测到预设配置如下:")])
+        for k, v in preset.items():
+            color_print([("green", f"  - {k}: {v}")])
+        confirm = inquirer.confirm(
+            message="是否使用?",
+            default=True,
+        ).execute()
+        if not confirm:
+            preset = {}
+
+    config.img_size = inquirer.text(
         message="尺寸限制 (限制长边，单位像素):",
         validate=NumberValidator(message="请输入合法数字"),
         default="2400",
         filter=lambda result: int(result),
-    ).execute()
-    img_format = inquirer.select(
+    ).execute() if ("img_size" not in preset) else preset["img_size"]
+
+    config.img_format = inquirer.select(
         message="压缩格式:",
         choices=["jpg", "webp", "png"],
-    ).execute()
-    img_quality = -1  # quality = -1 特指 png 格式
-    if img_format != "png":
-        img_quality = inquirer.text(
+    ).execute() if ("img_format" not in preset) else preset["img_format"]
+
+    if config.img_format != "png":
+        config.img_quality = inquirer.text(
             message="压缩质量 (1-100):",
             validate=NumberValidator(message="请输入合法数字"),
             default="90",
             filter=lambda result: int(result),
-        ).execute()
-    keep_alpha = False
-    if img_format != "jpg":
-        keep_alpha = inquirer.confirm(
+        ).execute() if ("img_quality" not in preset) else preset["img_quality"]
+
+    if config.img_format != "jpg":
+        config.keep_alpha = inquirer.confirm(
             message="是否保留透明度?",
             default=True,
-        ).execute()
-    concurrency = inquirer.text(
+        ).execute() if ("keep_alpha" not in preset) else preset["keep_alpha"]
+
+    config.concurrency = inquirer.text(
         message="并行数:",
         validate=NumberValidator(message="请输入合法数字"),
         default="8",
         filter=lambda result: int(result),
-    ).execute()
-    config = Config(input_path, output_path, img_size, img_format, img_quality, keep_alpha, concurrency)
+    ).execute() if ("concurrency" not in preset) else preset["concurrency"]
+
     return config
 
 

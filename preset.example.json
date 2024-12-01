@@ -1,0 +1,7 @@
+{
+  "img_size": 3200,
+  "img_format": "webp",
+  "img_quality": 90,
+  "keep_alpha": true,
+  "concurrency": 16
+}
