@@ -1,5 +1,7 @@
 import json
 import os
+import tempfile
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -125,3 +127,29 @@ def parse_concurrency(concurrency: str) -> int:
         return int(concurrency)
     else:
         return 1
+
+
+def unzip_to_tmp(zip_path: Path) -> Path:
+    """
+    解压zip文件到临时文件夹
+    :param zip_path: zip文件路径
+    :return: 临时文件夹路径
+    """
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        tmp_dir = Path(tempfile.mkdtemp())
+        zip_ref.extractall(tmp_dir)
+    return tmp_dir
+
+
+def make_zip(zip_path: Path, dir_path: Path) -> Path:
+    """
+    压缩文件夹到zip
+    :param zip_path: zip文件路径
+    :param dir_path: 文件夹路径
+    :return: zip文件路径
+    """
+    with zipfile.ZipFile(zip_path, "w") as zip_ref:
+        for root, _, files in os.walk(dir_path):
+            for file in files:
+                zip_ref.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), dir_path))
+    return zip_path
