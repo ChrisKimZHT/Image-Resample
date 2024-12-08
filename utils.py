@@ -1,8 +1,12 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from PIL import Image
+from tqdm import tqdm
+
+from classes import Config
 
 
 def resample_img(img_path: Path, save_path: Path, limit: int = 2400, quality: int = 100,
@@ -29,6 +33,51 @@ def resample_img(img_path: Path, save_path: Path, limit: int = 2400, quality: in
         return save_path.name
     except Exception as e:
         return f"[ERR] {e}"
+
+
+def prepare_resample_tasks(config: Config, img_list: list[Path]) -> list[tuple]:
+    """
+    生成重采样任务列表
+    :param config: 任务配置
+    :param img_list: 图片列表
+    :return: 任务列表
+    """
+    tasks = []
+    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
+        for img_path in img_list:
+            old_path = img_path.parent
+            new_path = config.output_path / old_path.relative_to(config.input_path)  # 保留原文件夹结构
+            if not new_path.exists():
+                new_path.mkdir(parents=True)
+
+            file_name, file_ext = img_path.name, img_path.suffix
+            save_img_path = new_path / file_name
+
+            tasks.append((resample_img, img_path, save_img_path,
+                          config.img_size, config.img_quality, config.keep_alpha))
+            pbar.set_description(f"{file_name}.{file_ext}".ljust(24)[:24])
+            pbar.update(1)
+    return tasks
+
+
+def execute_tasks(config: Config, tasks: list) -> list:
+    """
+    执行任务列表
+    :param config: 任务配置
+    :param tasks: 任务列表
+    :return: 错误列表
+    """
+    err = []
+    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
+        futures = [executor.submit(*task) for task in tasks]
+        with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
+            for future in as_completed(futures):
+                res = future.result()
+                if res.startswith("[ERR] "):
+                    err.append(res[6:])
+                pbar.set_description(f"{res}".ljust(24)[:24])
+                pbar.update(1)
+    return err
 
 
 def list_all_files(directory: Path) -> list[Path]:
@@ -60,7 +109,3 @@ def load_preset(preset_path: str = "preset.json") -> dict:
         return {}
     with open(preset_path, "r", encoding="utf-8") as f:
         return json.load(f)
-
-
-if __name__ == "__main__":
-    print(list_all_files(Path("D:\\Downloads")))

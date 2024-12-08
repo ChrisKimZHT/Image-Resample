@@ -1,14 +1,18 @@
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from InquirerPy import inquirer
 from InquirerPy.utils import color_print
 from InquirerPy.validator import NumberValidator
-from tqdm import tqdm
 
 from classes import Config, PathValidatorWithoutQuote
-from utils import list_all_files, filter_images, resample_img, load_preset
+from utils import list_all_files, filter_images, load_preset, prepare_resample_tasks, execute_tasks
+
+
+def print_header(cls: bool = False):
+    if cls:
+        os.system("clear" if os.name == "posix" else "cls")
+    color_print([("green", "图片重采样工具 v3.0"), ("yellow", " @ChrisKimZHT")])
 
 
 def get_input_output() -> tuple[None, None] | tuple[Path, Path]:
@@ -92,79 +96,41 @@ def get_config() -> Config:
     return config
 
 
-def prepare_tasks(config: Config, img_list: list[Path]) -> list:
-    tasks = []
-    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
-        for img_path in img_list:
-            old_path = img_path.parent
-            new_path = config.output_path / old_path.relative_to(config.input_path)  # 保留原文件夹结构
-            if not new_path.exists():
-                new_path.mkdir(parents=True)
-
-            file_name, file_ext = img_path.name, img_path.suffix
-            save_img_path = new_path / file_name
-
-            tasks.append((resample_img, img_path, save_img_path,
-                          config.img_size, config.img_quality, config.keep_alpha))
-            pbar.set_description(f"{file_name}.{file_ext}".ljust(24)[:24])
-            pbar.update(1)
-    return tasks
-
-
-def execute_tasks(config: Config, tasks: list) -> list:
-    err = []
-    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
-        futures = [executor.submit(*task) for task in tasks]
-        with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
-            for future in as_completed(futures):
-                res = future.result()
-                if res.startswith("[ERR] "):
-                    err.append(res[6:])
-                pbar.set_description(f"{res}".ljust(24)[:24])
-                pbar.update(1)
-    return err
-
-
-def print_header(cls: bool = False):
-    if cls:
-        os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v3.0"), ("yellow", " @ChrisKimZHT")])
-
-
-def main() -> None:
-    print_header(True)
-    config: Config = get_config()
-
+def get_image_list(directory: Path) -> list[Path]:
     color_print([("green", "[*] 遍历文件夹中...")])
-    img_list = list_all_files(config.input_path)
+    img_list = list_all_files(directory)
     color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
 
     color_print([("green", "[*] 过滤非图片...")])
     img_list = filter_images(img_list)
     color_print([("green", "[*] 过滤完成: "), ("yellow", f"共 {len(img_list)} 个图片")])
 
-    confirm = inquirer.confirm(
-        message="确认开始处理吗?",
-        default=True,
-    ).execute()
-    if not confirm:
-        return
+    return img_list
 
-    print_header(True)
+
+def start_process(config: Config, img_list: list[Path]) -> None:
     color_print([("green", "[*] 生成任务...")])
-    tasks = prepare_tasks(config, img_list)
+    tasks = prepare_resample_tasks(config, img_list)
     color_print([("green", "[*] 开始任务...")])
     err = execute_tasks(config, tasks)
     color_print([("green", "[*] 处理完成")])
 
-    for i, e in enumerate(err):
+    for i, e in enumerate(err):  # 打印错误信息
         color_print([("red", f"[x] #{i} {e}")])
 
-    is_continue = inquirer.confirm(
-        message="是否继续?",
-        default=False,
-    ).execute()
-    if not is_continue:
+
+def main() -> None:
+    print_header(cls=True)
+    config: Config = get_config()
+    img_list = get_image_list(config.input_path)
+
+    if not inquirer.confirm(message="确认开始处理吗?", default=True).execute():
+        return
+
+    print_header(cls=True)
+    start_process(config, img_list)
+
+    if not inquirer.confirm(message="是否继续?", default=False).execute():
         exit(0)
 
 
