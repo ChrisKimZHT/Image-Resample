@@ -12,12 +12,6 @@ from utils import list_all_files, filter_images, load_preset, prepare_resample_t
     unzip_to_tmp, make_zip
 
 
-def print_header(cls: bool = False) -> None:
-    if cls:
-        os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v3.0"), ("yellow", " @ChrisKimZHT")])
-
-
 def get_input_output() -> tuple[None, None] | tuple[Path, Path]:
     input_path = inquirer.filepath(
         message="原图文件夹或压缩包:",
@@ -172,14 +166,14 @@ def cleanup(config: Config) -> None:
 
 
 def main() -> None:
-    print_header(cls=True)
+    os.system("clear" if os.name == "posix" else "cls")
+    color_print([("green", "图片重采样工具 v3.1"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_config()
     img_list = get_image_list(config)
 
     if not inquirer.confirm(message="确认开始处理吗?", default=True).execute():
         return
 
-    print_header(cls=True)
     start_process(config, img_list)
 
     if config.output_path.is_file():
