@@ -160,9 +160,11 @@ def make_zip_result(config: Config) -> None:
 
 def cleanup(config: Config) -> None:
     color_print([("green", "[*] 清理中...")])
-    if config.input_tmp_path != Path() and config.input_tmp_path.is_dir():
+    if (config.input_tmp_path is not None and
+            inquirer.confirm(message=f"确认删除{config.input_tmp_path}?", default=True).execute()):
         shutil.rmtree(config.input_tmp_path)
-    if config.output_tmp_path != Path() and config.output_tmp_path.is_dir():
+    if (config.output_tmp_path is not None and
+            inquirer.confirm(message=f"确认删除{config.output_tmp_path}?", default=True).execute()):
         shutil.rmtree(config.output_tmp_path)
     color_print([("green", "[*] 清理完成")])
 
@@ -181,8 +183,7 @@ def main() -> None:
     if config.output_path.is_file():
         make_zip_result(config)
 
-    # 非常危险！还是别清理垃圾了。
-    # cleanup(config)
+    cleanup(config)
 
     if not inquirer.confirm(message="是否继续?", default=False).execute():
         exit(0)
