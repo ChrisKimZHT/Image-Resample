@@ -1,5 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from InquirerPy import inquirer
 from InquirerPy.utils import color_print
@@ -7,11 +8,10 @@ from InquirerPy.validator import NumberValidator
 from tqdm import tqdm
 
 from classes import Config, PathValidatorWithoutQuote
-from utils import normalize_path, recursive_list_file, filter_images, resample_img, load_preset, make_zipfile, \
-    delete_except_zip, list_relpath_file
+from utils import list_all_files, filter_images, resample_img, load_preset
 
 
-def get_input_output() -> tuple:
+def get_input_output() -> tuple[None, None] | tuple[Path, Path]:
     input_path = inquirer.filepath(
         message="原图文件夹:",
         only_directories=True,
@@ -23,20 +23,14 @@ def get_input_output() -> tuple:
         validate=PathValidatorWithoutQuote(is_dir=True, is_file=False, message="请输入合法路径"),
     ).execute()
 
-    input_path = normalize_path(input_path)
-    output_path = normalize_path(output_path)
+    input_path = Path(input_path).resolve()
+    output_path = Path(output_path).resolve()
 
     if input_path == output_path:
         color_print([("red", "[x] 安全起见，输入和输出路径不能相同")])
         return None, None
-    if not os.path.exists(input_path):
-        color_print([("red", "[x] 输入路径不存在")])
-        return None, None
-    if not os.path.exists(output_path):
-        color_print([("red", "[x] 安全起见，输出路径必须存在")])
-        return None, None
-    if os.listdir(output_path):
-        color_print([("red", "[x] 安全起见，输出路径必须为空")])
+    if any(output_path.iterdir()):
+        color_print([("red", "[x] 安全起见，输出文件夹必须为空")])
         return None, None
 
     return input_path, output_path
@@ -95,26 +89,24 @@ def get_config() -> Config:
         filter=lambda result: int(result),
     ).execute() if ("concurrency" not in preset) else preset["concurrency"]
 
-    config.zip = inquirer.confirm(
-        message="是否压缩文件夹?",
-        default=False,
-    ).execute() if ("zip" not in preset) else preset["zip"]
-
     return config
 
 
-def prepare_tasks(config: Config, img_list: list) -> list:
+def prepare_tasks(config: Config, img_list: list[Path]) -> list:
     tasks = []
     with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
         for img_path in img_list:
-            path, file_and_ext = os.path.split(img_path)
-            file, ext = os.path.splitext(file_and_ext)
-            new_path = normalize_path(path).replace(config.input_path, config.output_path)
-            save_path = os.path.join(new_path, f"{file}.{config.img_format}")
-            if not os.path.exists(new_path):
-                os.makedirs(new_path)
-            tasks.append((resample_img, img_path, save_path, config.img_size, config.img_quality, config.keep_alpha))
-            pbar.set_description(f"{file_and_ext}".ljust(24)[:24])
+            old_path = img_path.parent
+            new_path = config.output_path / old_path.relative_to(config.input_path)  # 保留原文件夹结构
+            if not new_path.exists():
+                new_path.mkdir(parents=True)
+
+            file_name, file_ext = img_path.name, img_path.suffix
+            save_img_path = new_path / file_name
+
+            tasks.append((resample_img, img_path, save_img_path,
+                          config.img_size, config.img_quality, config.keep_alpha))
+            pbar.set_description(f"{file_name}.{file_ext}".ljust(24)[:24])
             pbar.update(1)
     return tasks
 
@@ -144,7 +136,7 @@ def main() -> None:
     config: Config = get_config()
 
     color_print([("green", "[*] 遍历文件夹中...")])
-    img_list = recursive_list_file(config.input_path)
+    img_list = list_all_files(config.input_path)
     color_print([("green", "[*] 遍历完成: "), ("yellow", f"共 {len(img_list)} 个文件")])
 
     color_print([("green", "[*] 过滤非图片...")])
@@ -167,15 +159,6 @@ def main() -> None:
 
     for i, e in enumerate(err):
         color_print([("red", f"[x] #{i} {e}")])
-
-    if config.zip:
-        color_print([("green", "[*] 压缩中...")])
-        file_rel_list = list_relpath_file(config.output_path)
-        zipfile_path = os.path.join(config.output_path, "output.zip")
-        make_zipfile(zipfile_path, file_rel_list)
-        color_print([("green", "[*] 压缩完成"), ("yellow", f" {zipfile_path}")])
-        color_print([("green", "[*] 清理中...")])
-        delete_except_zip(config.output_path)
 
     is_continue = inquirer.confirm(
         message="是否继续?",
