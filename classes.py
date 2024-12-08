@@ -17,5 +17,6 @@ class Config:
 
 class PathValidatorWithoutQuote(PathValidator):
     def validate(self, document) -> None:
+        """注意，该验证器强制修改了私有变量_text，因此输出时也不会带引号"""
         document._text = document.text.strip("\"").strip("\'")
         super().validate(document)
