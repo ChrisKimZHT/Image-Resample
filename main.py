@@ -6,7 +6,7 @@ from InquirerPy.utils import color_print
 from InquirerPy.validator import NumberValidator
 
 from classes import Config, PathValidatorWithoutQuote
-from utils import list_all_files, filter_images, load_preset, prepare_resample_tasks, execute_tasks
+from utils import list_all_files, filter_images, load_preset, prepare_resample_tasks, execute_tasks, parse_concurrency
 
 
 def print_header(cls: bool = False):
@@ -86,12 +86,11 @@ def get_config() -> Config:
             default=True,
         ).execute() if ("keep_alpha" not in preset) else preset["keep_alpha"]
 
-    config.concurrency = inquirer.text(
+    concurrency = inquirer.text(
         message="并行数:",
-        validate=NumberValidator(message="请输入合法数字"),
-        default="8",
-        filter=lambda result: int(result),
+        default="max",
     ).execute() if ("concurrency" not in preset) else preset["concurrency"]
+    config.concurrency = parse_concurrency(concurrency)
 
     return config
 
