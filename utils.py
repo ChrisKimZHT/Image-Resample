@@ -47,8 +47,11 @@ def prepare_resample_tasks(config: Config, img_list: list[Path]) -> list[tuple]:
     tasks = []
     with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
         for img_path in img_list:
+            input_path = config.input_path if config.input_path.is_dir() else config.input_tmp_path
+            output_path = config.output_path if config.output_path.is_dir() else config.output_tmp_path
+
             old_path = img_path.parent
-            new_path = config.output_path / old_path.relative_to(config.input_path)  # 保留原文件夹结构
+            new_path = output_path / old_path.relative_to(input_path)  # 保留原文件夹结构
             if not new_path.exists():
                 new_path.mkdir(parents=True)
 

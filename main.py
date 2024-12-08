@@ -1,5 +1,5 @@
-import copy
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -140,11 +140,7 @@ def get_image_list(config: Config) -> list[Path]:
 def start_process(config: Config, img_list: list[Path]) -> None:
     if config.output_path.is_file():
         assert config.output_path.suffix.lower() == ".zip"
-        output_tmp_path = tempfile.TemporaryDirectory()
-        config.output_tmp_path = Path(output_tmp_path.name)
-        # 从现在开始，config 变成一个新的对象，临时交给任务处理
-        config = copy.deepcopy(config)
-        config.output_path = output_tmp_path
+        config.output_tmp_path = Path(tempfile.mkdtemp())
 
     color_print([("green", "[*] 生成任务...")])
     tasks = prepare_resample_tasks(config, img_list)
@@ -164,10 +160,10 @@ def make_zip_result(config: Config) -> None:
 
 def cleanup(config: Config) -> None:
     color_print([("green", "[*] 清理中...")])
-    if config.input_tmp_path.is_dir():
-        config.input_tmp_path.rmdir()
-    if config.output_tmp_path.is_dir():
-        config.output_tmp_path.rmdir()
+    if config.input_tmp_path != Path() and config.input_tmp_path.is_dir():
+        shutil.rmtree(config.input_tmp_path)
+    if config.output_tmp_path != Path() and config.output_tmp_path.is_dir():
+        shutil.rmtree(config.output_tmp_path)
     color_print([("green", "[*] 清理完成")])
 
 
@@ -185,7 +181,8 @@ def main() -> None:
     if config.output_path.is_file():
         make_zip_result(config)
 
-    cleanup(config)
+    # 非常危险！还是别清理垃圾了。
+    # cleanup(config)
 
     if not inquirer.confirm(message="是否继续?", default=False).execute():
         exit(0)
