@@ -26,6 +26,8 @@ def get_input_output() -> tuple[None, None] | tuple[Path, Path]:
     output_path = inquirer.filepath(
         message="目标文件夹或压缩包:",
     ).execute()
+    input_path = input_path.strip("\"").strip("\'")
+    output_path = output_path.strip("\"").strip("\'")
 
     input_path = Path(input_path).resolve()
     output_path = Path(output_path).resolve()
