@@ -55,8 +55,8 @@ def prepare_resample_tasks(config: Config, img_list: list[Path]) -> list[tuple]:
             if not new_path.exists():
                 new_path.mkdir(parents=True)
 
-            file_name, file_ext = img_path.name, img_path.suffix
-            save_img_path = new_path / file_name
+            file_name, file_ext = img_path.stem, img_path.suffix
+            save_img_path = new_path / f"{file_name}.{config.img_format}"
 
             tasks.append((resample_img, img_path, save_img_path,
                           config.img_size, config.img_quality, config.keep_alpha))
