@@ -113,12 +113,14 @@ def load_preset(preset_path: str = "preset.json") -> dict:
         return json.load(f)
 
 
-def parse_concurrency(concurrency: str) -> int:
+def parse_concurrency(concurrency: str | int) -> int:
     """
     解析并行数
-    :param concurrency: 预设中的并行数字符串
+    :param concurrency: 预设中的并行数字符串/整数
     :return: 并行数
     """
+    if isinstance(concurrency, int):
+        return concurrency if concurrency > 0 else 1
     if concurrency == "max":
         return os.cpu_count() or 1
     elif concurrency == "half":
