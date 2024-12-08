@@ -3,5 +3,5 @@
   "img_format": "webp",
   "img_quality": 90,
   "keep_alpha": true,
-  "concurrency": 16
+  "concurrency": "max"
 }
