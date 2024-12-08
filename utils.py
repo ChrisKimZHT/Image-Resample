@@ -1,13 +1,18 @@
 import json
 import os
-import shutil
+import tempfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from PIL import Image
 from tqdm import tqdm
 
+from classes import Config
 
-def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int = 100, keep_alpha: bool = False) -> str:
+
+def resample_img(img_path: Path, save_path: Path, limit: int = 2400, quality: int = 100,
+                 keep_alpha: bool = False) -> str:
     """
     重采样图片，基于pillow库
     :param img_path: 原始图片路径
@@ -15,7 +20,7 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
     :param limit: 长边限制
     :param quality: 压缩质量
     :param keep_alpha: 是否保留透明度
-    :return: 保存图片的文件名
+    :return: 保存图片的文件名，如果以[ERR]开头则表示出错
     """
     try:
         img = Image.open(img_path)
@@ -27,57 +32,76 @@ def resample_img(img_path: str, save_path: str, limit: int = 2400, quality: int 
             img = img.resize((int(limit / height * width), limit))
         img = img.convert("RGBA" if (keep_alpha and channel == 4) else "RGB")
         img.save(save_path, **({"quality": quality} if quality != -1 else {}))
-        return os.path.split(save_path)[-1]
+        return save_path.name
     except Exception as e:
         return f"[ERR] {e}"
 
 
-def normalize_path(path: str) -> str:
+def prepare_resample_tasks(config: Config, img_list: list[Path]) -> list[tuple]:
     """
-    去除引号，标准化路径为绝对路径并且确保以斜杠结尾
-    :param path: 原始路径
-    :return: 标准化后的路径
+    生成重采样任务列表
+    :param config: 任务配置
+    :param img_list: 图片列表
+    :return: 任务列表
     """
-    path = path.strip("\"").strip("\'")
-    path = os.path.abspath(path)
-    if os.name == "posix":
-        path += "/" if not path.endswith("/") else ""
-    else:
-        path += "\\" if not path.endswith("\\") else ""
-    return path
+    tasks = []
+    with tqdm(total=len(img_list), dynamic_ncols=True) as pbar:
+        for img_path in img_list:
+            input_path = config.input_path if config.input_path.is_dir() else config.input_tmp_path
+            output_path = config.output_path if config.output_path.is_dir() else config.output_tmp_path
+
+            old_path = img_path.parent
+            new_path = output_path / old_path.relative_to(input_path)  # 保留原文件夹结构
+            if not new_path.exists():
+                new_path.mkdir(parents=True)
+
+            file_name, file_ext = img_path.name, img_path.suffix
+            save_img_path = new_path / file_name
+
+            tasks.append((resample_img, img_path, save_img_path,
+                          config.img_size, config.img_quality, config.keep_alpha))
+            pbar.set_description(f"{file_name}.{file_ext}".ljust(24)[:24])
+            pbar.update(1)
+    return tasks
 
 
-def recursive_list_file(dir_path: str, res_list=None) -> list:
+def execute_tasks(config: Config, tasks: list) -> list:
     """
-    递归列出文件夹下所有文件
-    :param dir_path: 待列出文件的文件夹路径
-    :param res_list: 递归传递的结果列表（不需要传入）
+    执行任务列表
+    :param config: 任务配置
+    :param tasks: 任务列表
+    :return: 错误列表
+    """
+    err = []
+    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
+        futures = [executor.submit(*task) for task in tasks]
+        with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
+            for future in as_completed(futures):
+                res = future.result()
+                if res.startswith("[ERR] "):
+                    err.append(res[6:])
+                pbar.set_description(f"{res}".ljust(24)[:24])
+                pbar.update(1)
+    return err
+
+
+def list_all_files(directory: Path) -> list[Path]:
+    """
+    列出文件夹下所有文件
+    :param directory: 文件夹路径
     :return: 文件列表
     """
-    if res_list is None:
-        res_list = []
-    for file in os.listdir(dir_path):
-        file_path = os.path.join(dir_path, file)
-        if os.path.isdir(file_path):
-            recursive_list_file(file_path, res_list)
-        else:
-            res_list.append(file_path)
-    return res_list
+    return [file for file in Path(directory).rglob('*') if file.is_file()]
 
 
-def filter_images(file_list: list) -> list:
+def filter_images(file_list: list[Path]) -> list[Path]:
     """
     过滤出图片文件
     :param file_list: 原始文件列表
     :return: 仅包含图片文件的文件列表
     """
-    res_list = []
-    for filepath in file_list:
-        path, file_and_ext = os.path.split(filepath)
-        filename, ext = os.path.splitext(file_and_ext)
-        if ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]:
-            res_list.append(filepath)
-    return res_list
+    image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"]
+    return [filepath for filepath in file_list if (filepath.suffix.lower() in image_extensions)]
 
 
 def load_preset(preset_path: str = "preset.json") -> dict:
@@ -92,45 +116,45 @@ def load_preset(preset_path: str = "preset.json") -> dict:
         return json.load(f)
 
 
-def list_relpath_file(dir_path: str) -> list:
+def parse_concurrency(concurrency: str | int) -> int:
     """
-    列出文件夹下所有文件的相对路径
-    :param dir_path: 待列出文件的文件夹路径
-    :return: 文件相对路径列表
+    解析并行数
+    :param concurrency: 预设中的并行数字符串/整数
+    :return: 并行数
     """
-    res_list = []
-    for foldername, subfolders, filenames in os.walk(dir_path):
-        for filename in filenames:
-            file_path = os.path.join(foldername, filename)
-            res_list.append((file_path, os.path.relpath(file_path, dir_path)))
-    return res_list
+    if isinstance(concurrency, int):
+        return concurrency if concurrency > 0 else 1
+    if concurrency == "max":
+        return os.cpu_count() or 1
+    elif concurrency == "half":
+        return (os.cpu_count() // 2) or 1
+    elif concurrency.isdigit():
+        return int(concurrency)
+    else:
+        return 1
 
 
-def make_zipfile(zip_path: str, file_list: list) -> None:
+def unzip_to_tmp(zip_path: Path) -> Path:
     """
-    压缩文件列表
-    :param zip_path: 压缩文件路径
-    :param file_list: 文件相对路径列表 [(文件路径, 相对路径), ...]
+    解压zip文件到临时文件夹
+    :param zip_path: zip文件路径
+    :return: 临时文件夹路径
     """
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        with tqdm(total=len(file_list), dynamic_ncols=True) as pbar:
-            for file_path, rel_path in file_list:
-                zipf.write(file_path, rel_path)
-                file_name = os.path.split(file_path)[-1]
-                pbar.update(1)
-                pbar.set_description(f"{file_name}".ljust(24)[:24])
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        tmp_dir = Path(tempfile.mkdtemp())
+        zip_ref.extractall(tmp_dir)
+    return tmp_dir
 
 
-def delete_except_zip(folder_path: str) -> None:
+def make_zip(zip_path: Path, dir_path: Path) -> Path:
     """
-    删除除zip文件外的所有文件
-    :param folder_path: 文件夹路径
+    压缩文件夹到zip
+    :param zip_path: zip文件路径
+    :param dir_path: 文件夹路径
+    :return: zip文件路径
     """
-    for item in os.listdir(folder_path):
-        item_path = os.path.join(folder_path, item)
-
-        if item != 'output.zip':
-            if os.path.isdir(item_path):
-                shutil.rmtree(item_path)
-            else:
-                os.remove(item_path)
+    with zipfile.ZipFile(zip_path, "w") as zip_ref:
+        for root, _, files in os.walk(dir_path):
+            for file in files:
+                zip_ref.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), dir_path))
+    return zip_path
