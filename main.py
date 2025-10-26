@@ -42,11 +42,19 @@ def get_input_output() -> tuple[None, None] | tuple[Path, Path]:
 
     if output_path.exists():
         if output_path.is_file():
-            color_print([("red", "[x] 安全起见，不可覆盖已存在文件")])
-            return None, None
+            confirm = inquirer.confirm(
+                message="输出文件已存在，是否覆盖?",
+                default=False,
+            ).execute()
+            if not confirm:
+                return None, None
         if output_path.is_dir() and any(output_path.iterdir()):
-            color_print([("red", "[x] 安全起见，输出文件夹必须为空")])
-            return None, None
+            confirm = inquirer.confirm(
+                message="输出文件夹非空，是否继续?",
+                default=False,
+            ).execute()
+            if not confirm:
+                return None, None
     else:  # output_path 不存在
         if output_path.suffix.lower() == ".zip":
             output_path.touch()
