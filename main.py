@@ -175,7 +175,7 @@ def cleanup(config: Config) -> None:
 
 def main() -> None:
     os.system("clear" if os.name == "posix" else "cls")
-    color_print([("green", "图片重采样工具 v3.1.1"), ("yellow", " @ChrisKimZHT")])
+    color_print([("green", "图片重采样工具 v3.1.2"), ("yellow", " @ChrisKimZHT")])
     config: Config = get_config()
     img_list = get_image_list(config)
 
