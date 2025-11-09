@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from PIL import Image
@@ -73,7 +73,7 @@ def execute_tasks(config: Config, tasks: list) -> list:
     :return: 错误列表
     """
     err = []
-    with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
+    with ProcessPoolExecutor(max_workers=config.concurrency) as executor:
         futures = [executor.submit(*task) for task in tasks]
         with tqdm(total=len(futures), dynamic_ncols=True) as pbar:
             for future in as_completed(futures):
