@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import shutil
 import tempfile
@@ -194,5 +195,6 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     while True:
         main()
